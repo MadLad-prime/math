@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Algebra Animation with Graph — CSS/JS/HTML</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b0f14; /* deep navy */
+      --panel:#121826;
+      --ink:#e6eef8;
+      --muted:#a4b1c3;
+      --accent:#6ee7ff;
+      --accent-2:#8b5cf6;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --radius:18px;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    html,body{height:100%}
+    body{
+      margin:0; background: radial-gradient(1200px 600px at 70% -10%, #162038 0%, var(--bg) 55%);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+      color:var(--ink);
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{display:grid; grid-template-columns: 360px minmax(520px, 960px) 400px; gap:20px; width:min(1600px, 96vw)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); box-shadow:var(--shadow);}
+    .panel{padding:18px 18px 12px}
+    h1{font-weight:700; font-size:28px; letter-spacing:0.2px; margin:0 0 10px;}
+    h2{font-weight:600; font-size:18px; letter-spacing:0.1px; margin:0 0 8px;}
+    .muted{color:var(--muted)}
+    label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+    input[type="text"], textarea, select{
+      width:100%; background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--ink);
+      border-radius:12px; padding:10px 12px; outline:none; font-size:14px; box-sizing:border-box;
+    }
+    textarea{min-height:120px; resize:vertical}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    button{appearance:none; border:none; background:linear-gradient(180deg,#24334d,#1b2741); color:var(--ink); padding:10px 14px; border-radius:14px; cursor:pointer; font-weight:600; letter-spacing:.2px; box-shadow:var(--shadow);}
+    button.primary{background:linear-gradient(180deg, #37c2ff, #3b82f6); color:#06121e}
+    button.ghost{background:#0e1524}
+    button:disabled{opacity:.45; cursor:not-allowed}
+    .range{display:flex; align-items:center; gap:8px}
+    .range input{width:140px}
+
+    .stage-wrap{position:relative; border-radius:var(--radius); overflow:hidden}
+    .stage{
+      position:relative; height:520px; background:radial-gradient(500px 400px at 50% -20%, rgba(110,231,255,.15), transparent 60%),
+      linear-gradient(180deg, #0c1322, #0a101a);
+      display:grid; place-items:center;
+    }
+    .grid{position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+      background-size:40px 40px; mask:linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,.3));}
+
+    .eq-wrap{position:relative; width:min(90%, 900px); min-height:120px; display:grid; place-items:center;}
+    .eq{
+      font-size:42px; line-height:1.25; text-align:center; filter:drop-shadow(0 8px 26px rgba(0,0,0,.35));
+      opacity:0; transform:translateY(16px) scale(.98);
+      transition: opacity .6s ease, transform .6s ease;
+      padding:8px 16px; border-radius:16px; display:inline-block;
+    }
+    .eq.visible{opacity:1; transform:translateY(0) scale(1)}
+    .eq.error{color:var(--bad); font-size:18px; font-family:monospace;}
+
+    .note{
+      position:absolute; left:20px; right:20px; bottom:-14px; font-size:14px; color:var(--muted); text-align:center;
+      opacity:.95
+    }
+
+    .timeline{display:flex; align-items:center; gap:10px; padding:10px 14px; overflow-x:auto}
+    .chip{font-size:12px; padding:6px 10px; border-radius:999px; background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--muted); cursor:pointer;}
+    .chip.active{background:linear-gradient(180deg,#1f2842,#0f1630); color:var(--ink); border-color:rgba(110,231,255,.5)}
+
+    .row{display:flex; gap:12px; align-items:center; margin:8px 0}
+    .row > *{flex:1}
+    .small{font-size:12px}
+
+    .footer{display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid rgba(255,255,255,.08)}
+
+    /* Graph panel */
+    .graph-panel{display:flex; flex-direction:column}
+    .graph-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+    #graph{flex:1; width:100%; border-radius:12px; display:grid; place-items:center; background:rgba(12,19,34,0.8);}
+
+    /* Recorder badge */
+    .rec{font-size:12px; background:#1f2937; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.1)}
+    .rec.live{color:#111827; background:linear-gradient(180deg, #ef4444, #b91c1c)}
+
+    /* Tooltip */
+    .tip{position:relative}
+    .tip:hover::after{content:attr(data-tip); position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+      background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--ink); padding:6px 8px; border-radius:8px; white-space:nowrap; font-size:12px; margin-bottom:8px}
+
+    .toggle{display:flex; align-items:center; gap:8px; margin:8px 0}
+    .toggle input[type="checkbox"]{width:auto; margin:0}
+
+    /* Mobile */
+    @media (max-width: 1200px){
+      .app{grid-template-columns: 1fr; grid-template-rows: auto auto auto}
+      .stage{height:420px}
+      .eq{font-size:34px}
+      #graph{min-height:350px}
+    }
+  </style>
+  <!-- MathJax for LaTeX rendering -->
+  <script>
+    window.MathJax = {tex:{inlineMath:[["$","$"],["\\(","\\)"]]}, svg:{fontCache:'global'}};
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="card panel" aria-label="Editor and controls">
+      <h1>Algebra Animation</h1>
+      <p class="muted">Turn step-by-step algebra into a smooth "video" with live graphing. Edit the steps, then <b>Play</b> or <b>Record</b>.</p>
+      
+      <label for="preset">Preset</label>
+      <select id="preset">
+        <option value="linear">Solve: 2(x+3)=14</option>
+        <option value="system">Solve System: y=2x-1, y=-x+5</option>
+        <option value="quadratic">Quadratic: x²-3x-4=0</option>
+        <option value="factor">Factor: x²-5x+6</option>
+        <option value="square">Complete the Square</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="steps">Steps (LaTeX, one per line)</label>
+          <textarea id="steps" spellcheck="false"></textarea>
+          <div class="small muted">Tip: Use `\frac{a}{b}` for fractions.</div>
+        </div>
+      </div>
+
+      <div class="toggle">
+        <input type="checkbox" id="enableGraphing" checked>
+        <label for="enableGraphing" class="small">Enable live graphing</label>
+      </div>
+
+      <div class="controls" style="margin-top:10px">
+        <button id="btnPlay" class="primary">▶ Play</button>
+        <button id="btnPause" class="ghost" disabled>⏸ Pause</button>
+        <button id="btnPrev" class="ghost">⟲ Back</button>
+        <button id="btnNext" class="ghost">⟳ Step</button>
+        <div class="range">
+          <label class="small">Speed</label>
+          <input id="speed" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:8px">
+        <button id="btnRecord" class="ghost tip" data-tip="Record the stage as WebM">⦿ Start Recording</button>
+        <button id="btnStopRec" class="ghost" disabled>■ Stop & Save</button>
+        <span id="recBadge" class="rec" aria-live="polite">idle</span>
+      </div>
+
+      <div class="footer small muted">
+        <span>Built with HTML/CSS/JS + MathJax + Plotly.</span>
+        <a href="#" id="dlLink" class="small" style="color:var(--accent)">Download last recording</a>
+      </div>
+    </aside>
+
+    <main class="card stage-wrap" aria-label="Stage">
+      <div class="stage" id="stage">
+        <div class="grid" aria-hidden="true"></div>
+        <div class="eq-wrap" id="eqWrap">
+          <!-- Equations injected here -->
+        </div>
+        <div class="note" id="note">Press ▶ Play</div>
+      </div>
+      <div class="timeline" id="timeline" aria-label="Timeline of steps"></div>
+    </main>
+
+    <aside class="card panel graph-panel" aria-label="Graph visualization">
+      <div class="graph-header">
+        <h2>Live Graph</h2>
+        <button id="btnClearGraph" class="ghost small">Clear</button>
+      </div>
+      <div id="graph"></div>
+    </aside>
+  </div>
+
+  <template id="eqTpl">
+    <div class="eq"></div>
+  </template>
+
+  <script>
+    // DOM Elements
+    const preset = document.getElementById('preset');
+    const stepsArea = document.getElementById('steps');
+    const stage = document.getElementById('stage');
+    const eqWrap = document.getElementById('eqWrap');
+    const eqTpl = document.getElementById('eqTpl');
+    const note = document.getElementById('note');
+    const timelineEl = document.getElementById('timeline');
+    const enableGraphing = document.getElementById('enableGraphing');
+    const graphDiv = document.getElementById('graph');
+
+    const btnPlay = document.getElementById('btnPlay');
+    const btnPause = document.getElementById('btnPause');
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const speed = document.getElementById('speed');
+
+    const btnRecord = document.getElementById('btnRecord');
+    const btnStopRec = document.getElementById('btnStopRec');
+    const recBadge = document.getElementById('recBadge');
+    const dlLink = document.getElementById('dlLink');
+    const btnClearGraph = document.getElementById('btnClearGraph');
+
+    // --- PRESETS ---
+    const PRESETS = {
+      linear: {
+        steps: ['2(x+3)=14', '2x+6=14', '2x=8', 'x=4'],
+        graphs: [
+          () => plotLinearSystem('2*(x+3)', '14', [-2, 6]),
+          () => plotLinearSystem('2*x+6', '14', [-2, 6]),
+          () => plotLinearSystem('2*x', '8', [-2, 6]),
+          () => plotSolutionPoint(4)
+        ]
+      },
+       system: {
+        steps: ['y = 2x - 1', 'y = -x + 5', '2x - 1 = -x + 5', '3x = 6', 'x = 2', 'y = 2(2) - 1 = 3', '\\text{Solution: } (2, 3)'],
+        graphs: [
+          () => plotEquations(['2*x - 1'], [-2, 5]),
+          () => plotEquations(['2*x - 1', '-x + 5'], [-2, 5]),
+          () => plotEquations(['2*x - 1', '-x + 5'], [-2, 5]),
+          () => plotEquations(['2*x - 1', '-x + 5'], [-2, 5]),
+          () => plotEquations(['2*x - 1', '-x + 5'], [-2, 5]),
+          () => plotEquations(['2*x - 1', '-x + 5'], [-2, 5]),
+          () => plotSolutionPoint(2, 3, ['2*x-1', '-x+5']),
+        ]
+      },
+      quadratic: {
+        steps: ['x^2-3x-4=0', '(x-4)(x+1)=0', 'x=4 \\text{ or } x=-1'],
+        graphs: [
+          () => plotEquations(['x**2 - 3*x - 4'], [-3, 6]),
+          () => plotEquations(['(x-4)*(x+1)'], [-3, 6]),
+          () => plotSolutionPoint([-1, 4], [0, 0], ['x**2 - 3*x - 4']),
+        ]
+      },
+      factor: {
+        steps: ['x^2-5x+6', '(x-2)(x-3)'],
+        graphs: [
+            () => plotEquations(['x**2 - 5*x + 6'], [-1, 5]),
+            () => plotEquations(['(x-2)*(x-3)'], [-1, 5], [2, 3]),
+        ]
+      },
+      square: {
+        steps: ['x^2+6x+1=0', 'x^2+6x=-1', 'x^2+6x+9 = 8', '(x+3)^2 = 8', 'x = -3 \\pm \\sqrt{8}'],
+        graphs: [
+          () => plotEquations(['x**2+6*x+1'], [-8, 2]),
+          () => plotEquations(['x**2+6*x', '-1'], [-8, 2]),
+          () => plotEquations(['x**2+6*x+9', '8'], [-8, 2]),
+          () => plotEquations(['(x+3)**2', '8'], [-8, 2]),
+          () => plotSolutionPoint([-3 - Math.sqrt(8), -3 + Math.sqrt(8)], [0, 0], ['x**2+6*x+1']),
+        ]
+      }
+    };
+
+    // --- STATE MANAGEMENT ---
+    let state = {
+      steps: [],
+      graphs: [],
+      i: 0,
+      playing: false,
+      speed: 1.0,
+      timer: null
+    };
+
+    // --- GRAPHING ENGINE ---
+    const graphLayout = {
+        margin: { t: 30, r: 20, b: 40, l: 40 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(12,19,34,0.8)',
+        font: { color: 'var(--ink)' },
+        xaxis: { gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
+        yaxis: { gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' }
+    };
+
+    function initGraph() {
+        graphDiv.innerHTML = '<p class="muted small" style="text-align:center; padding:20px;">Graph will appear here.<br>Play an animation to begin.</p>';
+    }
+
+    function clearGraph() {
+        Plotly.purge(graphDiv);
+        initGraph();
+    }
+    
+    /**
+     * Universal function to plot one or more equations.
+     * @param {string[]} expressions - Array of math expressions in JS format (e.g., 'x**2 + 1').
+     * @param {number[]} range - A [min, max] array for the x-axis.
+     * @param {number[]} [roots] - Optional array of x-values to mark as roots on the y=0 axis.
+     */
+    function plotEquations(expressions, range, roots = []) {
+        if (!enableGraphing.checked) return;
+        const traces = [];
+        const [min, max] = range;
+        const x = Array.from({length: 101}, (_, i) => min + (max - min) * i / 100);
+
+        const colors = ['var(--accent)', 'var(--accent-2)', 'var(--warn)'];
+
+        expressions.forEach((expr, i) => {
+            try {
+                const y = x.map(val => eval(expr.replace(/x/g, `(${val})`)));
+                traces.push({ x, y, mode: 'lines', name: `y = ${expr}`, line: { color: colors[i % colors.length] } });
+            } catch (e) {
+                console.error("Error evaluating expression:", expr, e);
+            }
+        });
+
+        if (roots.length > 0) {
+            traces.push({
+                x: roots,
+                y: Array(roots.length).fill(0),
+                mode: 'markers', name: 'Roots',
+                marker: { size: 10, color: 'var(--good)' }
+            });
+        }
+        
+        Plotly.react(graphDiv, traces, graphLayout);
+    }
+    
+    /**
+     * Plots two expressions to find their intersection.
+     * @param {string} expr1 - First expression (LHS).
+     * @param {string} expr2 - Second expression (RHS).
+     * @param {number[]} range - A [min, max] array for the x-axis.
+     */
+    function plotLinearSystem(expr1, expr2, range) {
+        plotEquations([expr1, expr2], range);
+    }
+
+    /**
+     * Plots a final solution point on the graph.
+     * @param {number|number[]} x - The x-coordinate(s) of the solution.
+     * @param {number|number[]} [y] - The y-coordinate(s) of the solution. Defaults to 0 for single-variable equations.
+     * @param {string[]} [backgroundExprs] - Optional background equations to keep on the plot.
+     */
+    function plotSolutionPoint(x, y, backgroundExprs = []) {
+      if (!enableGraphing.checked) return;
+      
+      const xVals = Array.isArray(x) ? x : [x];
+      const yVals = y !== undefined ? (Array.isArray(y) ? y : [y]) : Array(xVals.length).fill(0);
+
+      const traces = [];
+      if (backgroundExprs.length > 0) {
+          const xRange = [Math.min(...xVals) - 2, Math.max(...xVals) + 2];
+          const bgTraces = [];
+          const xPlot = Array.from({length: 101}, (_, i) => xRange[0] + (xRange[1] - xRange[0]) * i / 100);
+          const colors = ['var(--accent)', 'var(--accent-2)', 'var(--warn)'];
+          backgroundExprs.forEach((expr, i) => {
+              try {
+                  const yPlot = xPlot.map(val => eval(expr.replace(/x/g, `(${val})`)));
+                  traces.push({ x:xPlot, y:yPlot, mode: 'lines', name: `y = ${expr}`, line: { color: colors[i % colors.length] } });
+              } catch (e) { console.error("Error evaluating expression:", expr, e); }
+          });
+      }
+      
+      traces.push({
+          x: xVals, y: yVals,
+          mode: 'markers', name: 'Solution',
+          marker: { size: 12, color: 'var(--good)', symbol: 'star' }
+      });
+
+      Plotly.react(graphDiv, traces, graphLayout);
+    }
+
+
+    // --- CORE APPLICATION LOGIC ---
+    function setPreset(key) {
+      const presetData = PRESETS[key] || PRESETS.linear;
+      stepsArea.value = presetData.steps.join('\n');
+      state.graphs = presetData.graphs || [];
+      loadFromTextarea();
+    }
+
+    function loadFromTextarea() {
+      const lines = stepsArea.value.split(/\n+/).map(s => s.trim()).filter(Boolean);
+      state.steps = lines;
+      // If the current preset doesn't have graphs, fill with empty functions
+      if (!state.graphs || state.graphs.length !== state.steps.length) {
+          state.graphs = Array(state.steps.length).fill(() => {});
+      }
+      state.i = 0;
+      pause();
+      renderTimeline();
+      renderStep(0, true);
+    }
+
+    function renderTimeline() {
+      timelineEl.innerHTML = '';
+      state.steps.forEach((s, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip' + (idx === state.i ? ' active' : '');
+        chip.textContent = `${idx + 1}${idx === 0 ? ' (start)' : ''}`;
+        chip.addEventListener('click', () => { pause(); goto(idx); });
+        timelineEl.appendChild(chip);
+      });
+    }
+
+    async function typeset(el, tex) {
+      if (window.MathJax) {
+        try {
+            el.innerHTML = `$$${tex}$$`;
+            await MathJax.typesetPromise([el]);
+            el.classList.remove('error');
+        } catch (e) {
+            el.innerHTML = `LaTeX Error:<br>${e.message}`;
+            el.classList.add('error');
+        }
+      } else {
+        el.textContent = tex;
+      }
+    }
+
+    function makeEq() {
+      return eqTpl.content.firstElementChild.cloneNode(true);
+    }
+
+    async function renderStep(index, immediate = false) {
+      eqWrap.innerHTML = '';
+      const el = makeEq();
+      const tex = state.steps[index] || '';
+      eqWrap.appendChild(el);
+      
+      await typeset(el, tex);
+
+      requestAnimationFrame(() => {
+        el.classList.add('visible');
+      });
+
+      note.textContent = `Step ${index + 1} of ${state.steps.length}`;
+      [...timelineEl.children].forEach((c, i) => c.classList.toggle('active', i === index));
+      
+      // Update graph
+      if (state.graphs && state.graphs[index]) {
+        state.graphs[index]();
+      }
+    }
+
+    function next() {
+      if (state.i < state.steps.length - 1) {
+        state.i++;
+        renderStep(state.i);
+      } else {
+        pause();
+      }
+    }
+
+    function prev() {
+      if (state.i > 0) {
+        state.i--;
+        renderStep(state.i);
+      }
+    }
+
+    function play() {
+      if (state.playing) return;
+      // If at the end, restart
+      if (state.i >= state.steps.length - 1) {
+          goto(0);
+      }
+      state.playing = true;
+      btnPlay.disabled = true;
+      btnPause.disabled = false;
+      tick();
+    }
+
+    function pause() {
+      state.playing = false;
+      btnPlay.disabled = false;
+      btnPause.disabled = true;
+      if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+    }
+
+    function tick() {
+      if (!state.playing) return;
+      const base = 1400; // ms
+      const delay = base / state.speed;
+      state.timer = setTimeout(() => { next(); tick(); }, delay);
+    }
+
+    function goto(i) {
+      state.i = Math.max(0, Math.min(i, state.steps.length - 1));
+      renderStep(state.i);
+    }
+
+    // --- RECORDER ---
+    let mediaRecorder, recordedChunks = [];
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+        recordedChunks = [];
+        
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          dlLink.href = url;
+          dlLink.download = 'algebra-animation.webm';
+          recBadge.textContent = 'saved';
+          recBadge.classList.remove('live');
+        };
+        
+        mediaRecorder.start();
+        recBadge.textContent = '● recording';
+        recBadge.classList.add('live');
+        btnRecord.disabled = true;
+        btnStopRec.disabled = false;
+
+        // Automatically stop recording when the stream ends (e.g., user clicks "Stop sharing")
+        stream.getVideoTracks()[0].onended = () => stopRecording();
+
+      } catch(err) {
+        console.error("Error starting recording:", err);
+        alert("Could not start recording. Please grant screen sharing permissions and ensure you are on a secure (https or localhost) connection.");
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      btnRecord.disabled = false;
+      btnStopRec.disabled = true;
+    }
+
+    // --- EVENT LISTENERS ---
+    preset.addEventListener('change', e => setPreset(e.target.value));
+    stepsArea.addEventListener('input', loadFromTextarea);
+    btnPlay.addEventListener('click', play);
+    btnPause.addEventListener('click', pause);
+    btnNext.addEventListener('click', () => { pause(); next(); });
+    btnPrev.addEventListener('click', () => { pause(); prev(); });
+    speed.addEventListener('input', e => { state.speed = +e.target.value; });
+    
+    btnRecord.addEventListener('click', startRecording);
+    btnStopRec.addEventListener('click', stopRecording);
+    
+    btnClearGraph.addEventListener('click', clearGraph);
+    enableGraphing.addEventListener('change', () => {
+        if (enableGraphing.checked) {
+            if (state.graphs && state.graphs[state.i]) {
+                state.graphs[state.i](); // Re-plot current step
+            }
+        } else {
+            clearGraph();
+        }
+    });
+
+    // --- INITIALIZATION ---
+    setPreset('linear');
+    initGraph();
+
+  </script>
+</body>
+</html>

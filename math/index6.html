@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Algebra Whiteboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #stage {
+      position: relative;
+      width: 800px;
+      height: 500px;
+      border: 2px solid #333;
+      background: white;
+      overflow: hidden;
+    }
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-size: 40px 40px;
+      background-image: linear-gradient(to right, #ddd 1px, transparent 1px),
+                        linear-gradient(to bottom, #ddd 1px, transparent 1px);
+      z-index: 0;
+    }
+    #equations {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2em;
+      z-index: 1;
+    }
+    #drawCanvas {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: auto;
+    }
+    #controls {
+      margin-top: 10px;
+    }
+    button {
+      margin: 0 5px;
+      padding: 6px 12px;
+    }
+    #recBadge {
+      margin-left: 10px;
+      font-weight: bold;
+      color: red;
+    }
+  </style>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+  <h2>Algebra Board with Drawing + Recording</h2>
+  <div id="stage">
+    <div class="grid"></div>
+    <div id="equations">\(ax^2 + bx + c = 0\)</div>
+    <canvas id="drawCanvas"></canvas>
+  </div>
+
+  <div id="controls">
+    <button id="btnRecord">Start Recording</button>
+    <button id="btnStopRec" disabled>Stop Recording</button>
+    <a id="dlLink">Download</a>
+    <span id="recBadge"></span>
+    <button id="btnClear">Clear Drawings</button>
+  </div>
+
+  <script>
+    const stage = document.getElementById("stage");
+    const drawCanvas = document.getElementById("drawCanvas");
+    const ctx = drawCanvas.getContext("2d");
+    drawCanvas.width = stage.clientWidth;
+    drawCanvas.height = stage.clientHeight;
+
+    // ---- Drawing functionality ----
+    let drawing = false;
+    drawCanvas.addEventListener("mousedown", startDraw);
+    drawCanvas.addEventListener("mousemove", draw);
+    drawCanvas.addEventListener("mouseup", stopDraw);
+    drawCanvas.addEventListener("mouseleave", stopDraw);
+    drawCanvas.addEventListener("touchstart", startDraw);
+    drawCanvas.addEventListener("touchmove", draw);
+    drawCanvas.addEventListener("touchend", stopDraw);
+
+    function getPos(e) {
+      if (e.touches && e.touches.length > 0) {
+        const rect = drawCanvas.getBoundingClientRect();
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top
+        };
+      } else {
+        const rect = drawCanvas.getBoundingClientRect();
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      }
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+
+    function stopDraw() {
+      drawing = false;
+      ctx.closePath();
+    }
+
+    document.getElementById("btnClear").onclick = () => {
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    };
+
+    // ---- Recording functionality ----
+    let mediaRecorder, recordedChunks = [];
+    const btnRecord = document.getElementById("btnRecord");
+    const btnStopRec = document.getElementById("btnStopRec");
+    const dlLink = document.getElementById("dlLink");
+    const recBadge = document.getElementById("recBadge");
+
+    btnRecord.onclick = startRecording;
+    btnStopRec.onclick = stopRecording;
+
+    async function startRecording() {
+      const stream = stage.captureStream(30); // capture entire board (grid + mathjax + drawings)
+      mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9" });
+
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        dlLink.href = url;
+        dlLink.download = "algebra-board.webm";
+      };
+
+      mediaRecorder.start();
+      recBadge.textContent = "● recording";
+      btnRecord.disabled = true;
+      btnStopRec.disabled = false;
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+      recBadge.textContent = "saved";
+      btnRecord.disabled = false;
+      btnStopRec.disabled = true;
+    }
+  </script>
+</body>
+</html>

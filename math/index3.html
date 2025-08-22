@@ -1,0 +1,392 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Algebra Animation — CSS/JS/HTML</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root{
+      --bg:#0b0f14; /* deep navy */
+      --panel:#121826;
+      --ink:#e6eef8;
+      --muted:#a4b1c3;
+      --accent:#6ee7ff;
+      --accent-2:#8b5cf6;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --radius:18px;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    html,body{height:100%}
+    body{
+      margin:0; background: radial-gradient(1200px 600px at 70% -10%, #162038 0%, var(--bg) 55%);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+      color:var(--ink);
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{display:grid; grid-template-columns: 360px minmax(520px, 960px); gap:20px; width:min(1200px, 96vw)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); box-shadow:var(--shadow);}
+    .panel{padding:18px 18px 12px}h1{font-weight:700; font-size:28px; letter-spacing:0.2px; margin:0 0 10px;}
+.muted{color:var(--muted)}
+label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+input[type="text"], textarea, select{
+  width:100%; background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--ink);
+  border-radius:12px; padding:10px 12px; outline:none; font-size:14px;
+}
+textarea{min-height:120px; resize:vertical}
+.controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+button{appearance:none; border:none; background:linear-gradient(180deg,#24334d,#1b2741); color:var(--ink); padding:10px 14px; border-radius:14px; cursor:pointer; font-weight:600; letter-spacing:.2px; box-shadow:var(--shadow);}
+button.primary{background:linear-gradient(180deg, #37c2ff, #3b82f6); color:#06121e}
+button.ghost{background:#0e1524}
+button:disabled{opacity:.45; cursor:not-allowed}
+.range{display:flex; align-items:center; gap:8px}
+.range input{width:140px}
+
+.stage-wrap{position:relative; border-radius:var(--radius); overflow:hidden}
+.stage{
+  position:relative; height:520px; background:radial-gradient(500px 400px at 50% -20%, rgba(110,231,255,.15), transparent 60%),
+  linear-gradient(180deg, #0c1322, #0a101a);
+  display:grid; place-items:center;
+}
+.grid{position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:40px 40px; mask:linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,.3));}
+
+.eq-wrap{position:relative; width:min(90%, 900px); min-height:120px}
+.eq{
+  font-size:42px; line-height:1.25; text-align:center; filter:drop-shadow(0 8px 26px rgba(0,0,0,.35));
+  opacity:0; transform:translateY(16px) scale(.98);
+  transition: opacity .6s ease, transform .6s ease;
+  padding:8px 16px; border-radius:16px; display:inline-block;
+}
+.eq.visible{opacity:1; transform:translateY(0) scale(1)}
+.eq .highlight{background:linear-gradient(90deg, rgba(139,92,246,.25), rgba(110,231,255,.25)); padding:0 .2em; border-radius:.35em}
+
+.note{
+  position:absolute; left:20px; right:20px; bottom:-14px; font-size:14px; color:var(--muted); text-align:center;
+  opacity:.95
+}
+
+.timeline{display:flex; align-items:center; gap:10px; padding:10px 14px; overflow-x:auto}
+.chip{font-size:12px; padding:6px 10px; border-radius:999px; background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--muted)}
+.chip.active{background:linear-gradient(180deg,#1f2842,#0f1630); color:var(--ink); border-color:rgba(110,231,255,.5)}
+
+.row{display:flex; gap:12px; align-items:center; margin:8px 0}
+.row > *{flex:1}
+.small{font-size:12px}
+
+.footer{display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid rgba(255,255,255,.08)}
+
+/* Recorder badge */
+.rec{font-size:12px; background:#1f2937; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.1)}
+.rec.live{color:#111827; background:linear-gradient(180deg, #ef4444, #b91c1c)}
+
+/* Tooltip */
+.tip{position:relative}
+.tip:hover::after{content:attr(data-tip); position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+  background:#0e1524; border:1px solid rgba(255,255,255,.08); color:var(--ink); padding:6px 8px; border-radius:8px; white-space:nowrap; font-size:12px; margin-bottom:8px}
+
+/* Mobile */
+@media (max-width: 980px){
+  .app{grid-template-columns: 1fr}
+  .stage{height:420px}
+  .eq{font-size:34px}
+}
+
+  </style>
+  <!-- MathJax for LaTeX rendering -->
+  <script>
+    window.MathJax = {tex:{inlineMath:[["$","$"],["\👦","\👦"]]}, svg:{fontCache:'global'}};
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <!-- Library to capture DIV content -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="card panel" aria-label="Editor and controls">
+      <h1>Algebra Animation</h1>
+      <p class="muted">Turn step-by-step algebra into a smooth "video". Edit the steps, then <b>Play</b> or <b>Record</b>.</p><label for="preset">Preset</label>
+  <select id="preset">
+    <option value="linear">Solve: $2(x+3)=14$</option>
+    <option value="expand">Expand: $(a+b)^2$</option>
+    <option value="factor">Factor: $x^2-5x+6$</option>
+    <option value="square">Complete the square</option>
+  </select>
+
+  <div class="row">
+    <div>
+      <label for="steps">Steps (LaTeX, one per line)</label>
+      <textarea id="steps" spellcheck="false"></textarea>
+      <div class="small muted">Tip: Use LaTeX like <code>2(x+3)=14</code>, arrows are added automatically.</div>
+    </div>
+  </div>
+
+  <div class="controls" style="margin-top:10px">
+    <button id="btnPlay" class="primary">▶ Play</button>
+    <button id="btnPause" class="ghost">⏸ Pause</button>
+    <button id="btnPrev" class="ghost">⟲ Back</button>
+    <button id="btnNext" class="ghost">⟳ Step</button>
+    <div class="range">
+      <label class="small">Speed</label>
+      <input id="speed" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+    </div>
+  </div>
+
+  <div class="controls" style="margin-top:8px">
+    <button id="btnRecord" class="ghost tip" data-tip="Record the stage as WebM">⦿ Start Recording</button>
+    <button id="btnStopRec" class="ghost" disabled>■ Stop & Save</button>
+    <span id="recBadge" class="rec" aria-live="polite">idle</span>
+  </div>
+
+  <div class="footer small muted">
+    <span>Built with HTML/CSS/JS + MathJax. No build tools.</span>
+    <a href="#" id="dlLink" class="small" style="color:var(--accent)">Download last recording</a>
+  </div>
+</aside>
+
+<main class="card stage-wrap" aria-label="Stage">
+  <div class="stage" id="stage">
+    <div class="grid" aria-hidden="true"></div>
+    <div class="eq-wrap" id="eqWrap">
+      <!-- Equations injected here -->
+    </div>
+    <div class="note" id="note">Press ▶ Play</div>
+  </div>
+  <div class="timeline" id="timeline" aria-label="Timeline of steps"></div>
+</main>
+
+  </div>  <template id="eqTpl">
+    <div class="eq"></div>
+  </template>  <script>
+    const preset = document.getElementById('preset');
+    const stepsArea = document.getElementById('steps');
+    const stage = document.getElementById('stage');
+    const eqWrap = document.getElementById('eqWrap');
+    const eqTpl = document.getElementById('eqTpl');
+    const note = document.getElementById('note');
+    const timelineEl = document.getElementById('timeline');
+
+    const btnPlay = document.getElementById('btnPlay');
+    const btnPause = document.getElementById('btnPause');
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const speed = document.getElementById('speed');
+
+    const btnRecord = document.getElementById('btnRecord');
+    const btnStopRec = document.getElementById('btnStopRec');
+    const recBadge = document.getElementById('recBadge');
+    const dlLink = document.getElementById('dlLink');
+
+    const PRESETS = {
+      linear: [
+        '2(x+3)=14',
+        '2x+6=14',
+        '2x=14-6',
+        '2x=8',
+        'x=\\dfrac{8}{2}',
+        'x=4'
+      ],
+      expand: [
+        '(a+b)^2',
+        '(a+b)(a+b)',
+        'a^2+ab+ab+b^2',
+        'a^2+2ab+b^2'
+      ],
+      factor: [
+        'x^2-5x+6',
+        '(x-2)(x-3)'
+      ],
+      square: [
+        'x^2+6x+1=0',
+        'x^2+6x= -1',
+        'x^2+6x+9 = 8',
+        '(x+3)^2 = 8',
+        'x+3 = \\pm\\sqrt{8}',
+        'x = -3 \\pm 2\\sqrt{2}'
+      ]
+    };
+
+    let state = {
+      steps: [],
+      i: 0,
+      playing: false,
+      speed: 1.0,
+      timer: null
+    };
+
+    function setPreset(key){
+      const arr = PRESETS[key] || PRESETS.linear;
+      stepsArea.value = arr.join('\n');
+      loadFromTextarea();
+    }
+
+    function loadFromTextarea(){
+      const lines = stepsArea.value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+      state.steps = lines;
+      state.i = 0;
+      renderTimeline();
+      renderStep(0, true);
+    }
+
+    function renderTimeline(){
+      timelineEl.innerHTML = '';
+      state.steps.forEach((s, idx)=>{
+        const chip = document.createElement('div');
+        chip.className = 'chip' + (idx===state.i ? ' active' : '');
+        chip.textContent = (idx+1) + (idx===0?' (start)':'');
+        chip.addEventListener('click', ()=>{goto(idx)});
+        timelineEl.appendChild(chip);
+      });
+    }
+
+    async function typeset(el){
+      if(window.MathJax){
+        await MathJax.typesetPromise([el]);
+      }
+    }
+
+    function makeEq(tex){
+      const el = eqTpl.content.firstElementChild.cloneNode(true);
+      el.innerHTML = `$${tex}$`;
+      return el;
+    }
+
+    async function renderStep(index, immediate=false){
+      eqWrap.innerHTML = '';
+      const el = makeEq(state.steps[index] || '');
+      eqWrap.appendChild(el);
+      await typeset(eqWrap);
+      requestAnimationFrame(()=>{
+        el.classList.add('visible');
+      });
+      note.textContent = `Step ${index+1} of ${state.steps.length}`;
+      [...timelineEl.children].forEach((c,i)=>c.classList.toggle('active', i===index));
+    }
+
+    function next(){
+      if(state.i < state.steps.length-1){
+        state.i++;
+        renderStep(state.i);
+      } else {
+        pause();
+      }
+    }
+    function prev(){
+      if(state.i>0){
+        state.i--; renderStep(state.i);
+      }
+    }
+
+    function play(){
+      if(state.playing) return;
+      state.playing = true;
+      btnPlay.disabled = true; btnPause.disabled = false;
+      tick();
+    }
+    function pause(){
+      state.playing = false;
+      btnPlay.disabled = false; btnPause.disabled = true;
+      if(state.timer){clearTimeout(state.timer); state.timer=null}
+    }
+
+    function tick(){
+      if(!state.playing) return;
+      const base = 1400; // ms
+      const delay = base / state.speed;
+      state.timer = setTimeout(()=>{ next(); tick(); }, delay);
+    }
+
+    function goto(i){ state.i = Math.max(0, Math.min(i, state.steps.length-1)); renderStep(state.i); }
+
+    // --- Recorder ---
+    let mediaRecorder, recordedChunks = [], animationFrameId;
+
+    async function startRecording(){
+      // Create a canvas to draw the #stage content onto
+      const recordCanvas = document.createElement('canvas');
+      const scale = 2; // Increase scale for better quality
+      recordCanvas.width = stage.offsetWidth * scale;
+      recordCanvas.height = stage.offsetHeight * scale;
+      const ctx = recordCanvas.getContext('2d');
+      ctx.scale(scale, scale); // Scale the context
+
+      // Get a media stream from this canvas
+      const stream = recordCanvas.captureStream(30); // 30 FPS
+      mediaRecorder = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp9'});
+
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = e => {
+        if(e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, {type:'video/webm'});
+        const url = URL.createObjectURL(blob);
+        dlLink.href = url;
+        dlLink.download = 'algebra-board.webm';
+      };
+
+      // Loop to draw stage onto canvas
+      async function recordFrame() {
+        try {
+          // --- FIX: Use a solid background and other options for better reliability ---
+          const canvas = await html2canvas(stage, {
+            logging: false,
+            allowTaint: true,
+            useCORS: true,
+            backgroundColor: '#0b0f14' // Use solid background to avoid gradient issues
+          });
+          
+          ctx.clearRect(0, 0, recordCanvas.width, recordCanvas.height);
+          ctx.drawImage(canvas, 0, 0, stage.offsetWidth, stage.offsetHeight);
+
+          if (mediaRecorder.state === 'recording') {
+            animationFrameId = requestAnimationFrame(recordFrame);
+          }
+        } catch (err) {
+            console.error("Error capturing frame:", err);
+            stopRecording();
+        }
+      }
+      
+      // Start recording & the frame loop
+      mediaRecorder.start();
+      animationFrameId = requestAnimationFrame(recordFrame);
+
+      recBadge.textContent = '● recording';
+      recBadge.classList.add('live');
+      btnRecord.disabled = true;
+      btnStopRec.disabled = false;
+    }
+
+    function stopRecording(){
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+      }
+      if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+      }
+      recBadge.textContent = 'saved';
+      recBadge.classList.remove('live');
+      btnRecord.disabled = false;
+      btnStopRec.disabled = true;
+    }
+
+
+    // Wire up
+    preset.addEventListener('change', e=> setPreset(e.target.value));
+    stepsArea.addEventListener('change', loadFromTextarea);
+    btnPlay.addEventListener('click', play);
+    btnPause.addEventListener('click', pause);
+    btnNext.addEventListener('click', ()=>{ pause(); next(); });
+    btnPrev.addEventListener('click', ()=>{ pause(); prev(); });
+    speed.addEventListener('input', e=>{ state.speed = +e.target.value;});
+
+    btnRecord.addEventListener('click', startRecording);
+    btnStopRec.addEventListener('click', stopRecording);
+
+    // Init
+    setPreset('linear');
+  </script></body>
+</html>

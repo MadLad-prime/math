@@ -1,0 +1,152 @@
+<!-- FIXED VERSION -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dynamic Algebra Animation</title>
+  <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+  <script>
+    window.MathJax = { tex:{inlineMath:[["$","$"],["\\(","\\)"]]}, svg:{fontCache:'global'} };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <style>
+    body{margin:0;display:grid;place-items:center;background:#0b0f14;color:#e6eef8;font-family:sans-serif}
+    .app{display:grid;grid-template-columns:360px minmax(520px,960px) 400px;gap:20px;width:min(1600px,96vw)}
+    .card{background:#121826;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .stage{height:420px;display:grid;place-items:center;background:#0c1322;position:relative}
+    .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:40px 40px}
+    .eq{font-size:32px;opacity:0;transition:.6s;filter:drop-shadow(0 8px 26px rgba(0,0,0,.35))}
+    .eq.visible{opacity:1;transform:translateY(0)}
+    .timeline{display:flex;gap:10px;padding:10px;overflow-x:auto}
+    .chip{padding:6px 10px;border-radius:999px;background:#0e1524;font-size:12px;cursor:pointer;color:#a4b1c3}
+    .chip.active{background:#1f2842;color:#fff}
+    #graph{min-height:350px;border-radius:12px;background:#0c1322}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="card">
+    <h1>Dynamic Algebra</h1>
+    <select id="preset">
+      <option value="linear">2(x+3)=14</option>
+      <option value="quadratic">Quadratic Formula</option>
+      <option value="system">System of Equations</option>
+    </select>
+    <textarea id="steps" style="width:100%;min-height:120px;margin-top:10px"></textarea>
+    <div style="margin-top:10px">
+      <button id="btnPlay">▶ Play</button>
+      <button id="btnPause">⏸ Pause</button>
+      <button id="btnPrev">⟲ Back</button>
+      <button id="btnNext">⟳ Step</button>
+    </div>
+  </aside>
+
+  <main class="card">
+    <div class="stage"><div class="grid"></div><div id="eqWrap"></div></div>
+    <div class="timeline" id="timeline"></div>
+  </main>
+
+  <aside class="card">
+    <h2>Live Graph</h2>
+    <div id="graph"></div>
+    <div id="graphInfo" style="font-size:12px;color:#a4b1c3;margin-top:8px"></div>
+  </aside>
+</div>
+
+<template id="eqTpl"><div class="eq"></div></template>
+
+<script>
+const DOM = {
+  preset:document.getElementById('preset'),
+  stepsArea:document.getElementById('steps'),
+  eqWrap:document.getElementById('eqWrap'),
+  eqTpl:document.getElementById('eqTpl'),
+  timelineEl:document.getElementById('timeline'),
+  graphDiv:document.getElementById('graph'),
+  graphInfo:document.getElementById('graphInfo'),
+  btnPlay:document.getElementById('btnPlay'),
+  btnPause:document.getElementById('btnPause'),
+  btnNext:document.getElementById('btnNext'),
+  btnPrev:document.getElementById('btnPrev')
+};
+
+const PRESETS={
+  linear:`2(x+3)=14\n2x+6=14\n2x=8\nx=4`,
+  quadratic:`y = x^2 - 2x - 3\ny = (x-3)(x+1)\ny = 0\nx = 3 or x = -1`,
+  system:`y = 2x-1\ny = -x+5\n2x-1=-x+5\n3x=6\nx=2,y=3`
+};
+
+let state={steps:[],i:0,playing:false,timer:null};
+
+function parseTexToJs(tex){
+  return tex
+    .replace(/\\sqrt\{([^}]*)\}/g,'Math.sqrt($1)')
+    .replace(/\^(\d+)/g,'**$1')
+    .replace(/\^\\{([^}]*)\\}/g,'**($1)')
+    .replace(/([0-9])([a-zA-Z])/g,'$1*$2')
+    .replace(/\\cdot|\\times/g,'*')
+    .replace(/\{/g,'(').replace(/\}/g,')');
+}
+
+function safeEval(expr,x){try{return eval(expr);}catch{return NaN;}}
+
+function plotStep(tex){
+  const clean=tex.replace(/\$/g,'').trim();
+  if(!clean){DOM.graphInfo.textContent='';return;}
+  const parts=clean.split('=');
+  const xs=Array.from({length:200},(_,i)=>-10+i*0.1);
+  let traces=[];
+  if(parts.length===2&&parts[0].trim()==='y'){
+    const rhs=parseTexToJs(parts[1]);
+    const ys=xs.map(v=>safeEval(rhs,v));
+    traces=[{x:xs,y:ys,mode:'lines',line:{color:'#6ee7ff'}}];
+    DOM.graphInfo.textContent=`y=${parts[1]}`;
+  }
+  if(traces.length) Plotly.newPlot(DOM.graphDiv,traces,{margin:{t:20}});
+}
+
+async function renderStep(i){
+  state.i=i;
+  DOM.eqWrap.innerHTML='';
+  const el=DOM.eqTpl.content.firstElementChild.cloneNode(true);
+  DOM.eqWrap.appendChild(el);
+  if(window.MathJax){
+    el.innerHTML=`$$${state.steps[i]}$$`;
+    await MathJax.typesetPromise([el]);
+  }else el.textContent=state.steps[i];
+  requestAnimationFrame(()=>el.classList.add('visible'));
+  plotStep(state.steps[i]);
+  DOM.timelineEl.querySelectorAll('.chip').forEach((c,idx)=>c.classList.toggle('active',idx===i));
+}
+
+function renderTimeline(){
+  DOM.timelineEl.innerHTML='';
+  state.steps.forEach((s,i)=>{
+    const chip=document.createElement('div');
+    chip.className='chip'+(i===0?' active':'');
+    chip.textContent=i+1;
+    chip.onclick=()=>{pause();renderStep(i);};
+    DOM.timelineEl.appendChild(chip);
+  });
+}
+
+function loadPreset(k){DOM.stepsArea.value=PRESETS[k];loadSteps();}
+function loadSteps(){state.steps=DOM.stepsArea.value.split(/\n+/).filter(Boolean);state.i=0;pause();renderTimeline();renderStep(0);}
+function next(){if(state.i<state.steps.length-1)renderStep(++state.i);else pause();}
+function prev(){if(state.i>0)renderStep(--state.i);}
+function play(){if(state.playing)return;state.playing=true;tick();}
+function pause(){state.playing=false;if(state.timer)clearTimeout(state.timer);}
+function tick(){if(!state.playing)return;next();state.timer=setTimeout(tick,1400);}
+
+DOM.preset.onchange=e=>loadPreset(e.target.value);
+DOM.stepsArea.oninput=loadSteps;
+DOM.btnPlay.onclick=play;
+DOM.btnPause.onclick=pause;
+DOM.btnNext.onclick=()=>{pause();next();};
+DOM.btnPrev.onclick=()=>{pause();prev();};
+
+loadPreset('linear');
+</script>
+</body>
+</html>
