@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Algebra Animation & Whiteboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#121826;
+      --ink:#e6eef8;
+      --muted:#a4b1c3;
+      --accent:#6ee7ff;
+      --accent-2:#8b5cf6;
+      --radius:18px;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --border-color: rgba(255,255,255,.08);
+    }
+    html,body{height:100%}
+    body{
+      margin:0; background: radial-gradient(1200px 600px at 70% -10%, #162038 0%, var(--bg) 55%);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+      color:var(--ink);
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{display:grid; grid-template-columns: 360px minmax(520px, 960px); gap:20px; width:min(1200px, 96vw)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); border:1px solid var(--border-color); border-radius:var(--radius); box-shadow:var(--shadow);}
+    .panel{padding:18px 18px 12px}
+    h1{font-weight:700; font-size:28px; letter-spacing:0.2px; margin:0 0 10px;}
+    h2{font-size: 18px; margin: 20px 0 10px; border-top:1px solid var(--border-color); padding-top:16px;}
+    .muted{color:var(--muted)}
+    label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+    input[type="text"], textarea, select{
+      width:100%; background:#0e1524; border:1px solid var(--border-color); color:var(--ink);
+      border-radius:12px; padding:10px 12px; outline:none; font-size:14px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    textarea{min-height:120px; resize:vertical}
+    input:focus, textarea:focus, select:focus, button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-color: rgba(110, 231, 255, .5);
+        box-shadow: 0 0 15px rgba(110, 231, 255, .15);
+    }
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    button{
+      appearance:none; border:none; background:linear-gradient(180deg,#24334d,#1b2741); color:var(--ink);
+      padding:10px 14px; border-radius:14px; cursor:pointer; font-weight:600; letter-spacing:.2px;
+      box-shadow:var(--shadow); transition: transform .2s, box-shadow .2s;
+    }
+    button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,.3); }
+    button.primary{background:linear-gradient(180deg, #37c2ff, #3b82f6); color:#06121e}
+    button.ghost{background:#0e1524}
+    button:disabled{opacity:.45; cursor:not-allowed}
+    .range{display:flex; align-items:center; gap:8px}
+    .range input{width:140px}
+
+    .stage-wrap{position:relative; border-radius:var(--radius); overflow:hidden}
+    .stage{
+      position:relative;
+      aspect-ratio: 16 / 10; /* IMPROVEMENT: Responsive stage */
+      height: auto; width:100%;
+      background:radial-gradient(500px 400px at 50% -20%, rgba(110,231,255,.15), transparent 60%), linear-gradient(180deg, #0c1322, #0a101a);
+      display:grid; place-items:center;
+    }
+    #gridCanvas, #drawCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #drawCanvas { z-index: 10; cursor: crosshair; }
+    #eqWrap { z-index: 5; }
+
+    .eq-wrap{position:relative; width:min(90%, 900px); min-height:120px}
+    .eq{
+      font-size:clamp(28px, 4.5vw, 42px); /* IMPROVEMENT: Fluid font size */
+      line-height:1.25; text-align:center; filter:drop-shadow(0 8px 26px rgba(0,0,0,.35));
+      opacity:0; transform:translateY(16px) scale(.98);
+      transition: opacity .6s ease, transform .6s ease;
+      padding:8px 16px; border-radius:16px; display:inline-block;
+    }
+    .eq.visible{opacity:1; transform:translateY(0) scale(1)}
+    
+    .note{
+      position:absolute; left:20px; right:20px; bottom:-14px; font-size:14px; color:var(--muted); text-align:center;
+      opacity:.95
+    }
+    .timeline{display:flex; align-items:center; gap:10px; padding:10px 14px; overflow-x:auto}
+    .chip{font-size:12px; padding:6px 10px; border-radius:999px; background:#0e1524; border:1px solid var(--border-color); color:var(--muted); cursor:pointer; transition: background .2s, color .2s, border-color .2s;}
+    .chip.active{background:linear-gradient(180deg,#1f2842,#0f1630); color:var(--ink); border-color:rgba(110,231,255,.5)}
+
+    .row{display:flex; gap:12px; align-items:center; margin:8px 0}
+    .row > *{flex:1}
+    .small{font-size:12px}
+
+    .footer{display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid var(--border-color); margin-top:20px;}
+
+    /* Recorder badge */
+    .rec{font-size:12px; background:#1f2937; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.1)}
+    .rec.live{color:#111827; background:linear-gradient(180deg, #ef4444, #b91c1c); font-weight:600;}
+
+    /* Tooltip */
+    .tip{position:relative}
+    .tip:hover::after{content:attr(data-tip); position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+      background:#0e1524; border:1px solid var(--border-color); color:var(--ink); padding:6px 8px; border-radius:8px; white-space:nowrap; font-size:12px; margin-bottom:8px}
+    /* IMPROVEMENT: Better color picker */
+    .color-input {
+        width: 40px; height: 40px; padding: 4px; border:none; background:none; border-radius: 8px; cursor:pointer;
+    }
+    input[type="color"]::-webkit-color-swatch { border-radius: 6px; border: 1px solid var(--border-color); }
+    input[type="color"]::-moz-color-swatch { border-radius: 6px; border: 1px solid var(--border-color); }
+
+    /* Mobile */
+    @media (max-width: 980px){
+      .app{grid-template-columns: 1fr}
+      .stage{min-height:350px}
+    }
+  </style>
+  
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+      chtml: { fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="card panel" aria-label="Editor and controls">
+      <h1>Algebra Animation & Whiteboard</h1>
+      <p class="muted">Animate algebra and draw on the whiteboard. Edit steps, then <b>Play</b> or <b>Record</b>.</p>
+      
+      <label for="preset">Preset</label>
+      <select id="preset">
+        <option value="linear">Solve: $2(x+3)=14$</option>
+        <option value="expand">Expand: $(a+b)^2$</option>
+        <option value="factor">Factor: $x^2-5x+6$</option>
+        <option value="square">Complete the square</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="steps">Steps (LaTeX, one per line)</label>
+          <textarea id="steps" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <h2>Animation Controls</h2>
+      <div class="controls">
+        <button id="btnPlay" class="primary">▶ Play</button>
+        <button id="btnPause" class="ghost">⏸ Pause</button>
+        <button id="btnPrev" class="ghost">⟲ Back</button>
+        <button id="btnNext" class="ghost">⟳ Step</button>
+        <div class="range">
+          <label class="small">Speed</label>
+          <input id="speed" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+      </div>
+
+      <h2>Whiteboard Controls</h2>
+      <div class="controls">
+          <button id="btnClear" class="ghost">Clear Drawing</button>
+          <label class="small" for="drawColor">Color</label>
+          <input type="color" id="drawColor" class="color-input" value="#FFFFFF">
+          <div class="range">
+            <label class="small">Size</label>
+            <input id="lineWidth" type="range" min="1" max="20" step="1" value="3">
+          </div>
+      </div>
+
+      <h2>Recording</h2>
+      <div class="controls">
+        <button id="btnRecord" class="ghost tip" data-tip="Record the stage as WebM">⦿ Start Recording</button>
+        <button id="btnStopRec" class="ghost" disabled>■ Stop & Save</button>
+        <span id="recBadge" class="rec" aria-live="polite">idle</span>
+      </div>
+
+      <div class="footer small muted">
+        <span>Built with HTML/CSS/JS + MathJax.</span>
+        <a href="#" id="dlLink" class="small" style="color:var(--accent); display:none;">Download last recording</a>
+      </div>
+    </aside>
+
+    <main class="card stage-wrap" aria-label="Stage">
+      <div class="stage" id="stage">
+        <canvas id="gridCanvas" aria-hidden="true"></canvas>
+        <canvas id="drawCanvas"></canvas>
+        <div class="eq-wrap" id="eqWrap"></div>
+        <div class="note" id="note">Press ▶ Play</div>
+      </div>
+      <div class="timeline" id="timeline" aria-label="Timeline of steps"></div>
+    </main>
+
+  </div>
+
+  <template id="eqTpl"><div class="eq"></div></template>
+
+  <script>
+    // IMPROVEMENT: Code is now modular and organized into objects.
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      const PRESETS = {
+        linear: ['2(x+3)=14', '2x+6=14', '2x=14-6', '2x=8', 'x=\\dfrac{8}{2}', 'x=4'],
+        expand: ['(a+b)^2', '(a+b)(a+b)', 'a^2+ab+ab+b^2', 'a^2+2ab+b^2'],
+        factor: ['x^2-5x+6', '(x-2)(x-3)'],
+        square: ['x^2+6x+1=0', 'x^2+6x= -1', 'x^2+6x+9 = 8', '(x+3)^2 = 8', 'x+3 = \\pm\\sqrt{8}', 'x = -3 \\pm 2\\sqrt{2}']
+      };
+
+      const DOM = {
+        preset: document.getElementById('preset'),
+        stepsArea: document.getElementById('steps'),
+        stage: document.getElementById('stage'),
+        eqWrap: document.getElementById('eqWrap'),
+        eqTpl: document.getElementById('eqTpl'),
+        note: document.getElementById('note'),
+        timelineEl: document.getElementById('timeline'),
+        btnPlay: document.getElementById('btnPlay'),
+        btnPause: document.getElementById('btnPause'),
+        btnPrev: document.getElementById('btnPrev'),
+        btnNext: document.getElementById('btnNext'),
+        speed: document.getElementById('speed'),
+        gridCanvas: document.getElementById('gridCanvas'),
+        drawCanvas: document.getElementById('drawCanvas'),
+        btnClear: document.getElementById('btnClear'),
+        drawColor: document.getElementById('drawColor'),
+        lineWidth: document.getElementById('lineWidth'),
+        btnRecord: document.getElementById('btnRecord'),
+        btnStopRec: document.getElementById('btnStopRec'),
+        recBadge: document.getElementById('recBadge'),
+        dlLink: document.getElementById('dlLink'),
+      };
+
+      /**
+       * Manages the animation state and controls.
+       */
+      const Animator = {
+        state: { steps: [], i: 0, playing: false, speed: 1.0, timer: null },
+        
+        init() {
+          this.setPreset('linear');
+          this.bindEvents();
+          this.updateUI();
+        },
+        
+        bindEvents() {
+          DOM.preset.addEventListener('change', e => this.setPreset(e.target.value));
+          DOM.stepsArea.addEventListener('input', () => this.loadFromTextarea());
+          DOM.btnPlay.addEventListener('click', () => this.play());
+          DOM.btnPause.addEventListener('click', () => this.pause());
+          DOM.btnNext.addEventListener('click', () => { this.pause(); this.next(); });
+          DOM.btnPrev.addEventListener('click', () => { this.pause(); this.prev(); });
+          DOM.speed.addEventListener('input', e => { this.state.speed = +e.target.value; });
+        },
+
+        setPreset(key) {
+          DOM.stepsArea.value = (PRESETS[key] || PRESETS.linear).join('\n');
+          this.loadFromTextarea();
+        },
+
+        loadFromTextarea() {
+          this.state.steps = DOM.stepsArea.value.split(/\n+/).map(s => s.trim()).filter(Boolean);
+          this.goto(0, true);
+        },
+
+        async renderStep(immediate = false) {
+          const { i, steps } = this.state;
+          const tex = steps[i] || '';
+          
+          const el = DOM.eqTpl.content.firstElementChild.cloneNode(true);
+          el.innerHTML = `$${tex}$`;
+          
+          DOM.eqWrap.innerHTML = '';
+          DOM.eqWrap.appendChild(el);
+          
+          if (window.MathJax) {
+            await MathJax.startup.promise;
+            await MathJax.typesetPromise([DOM.eqWrap]);
+          }
+          
+          requestAnimationFrame(() => el.classList.add('visible'));
+          
+          DOM.note.textContent = `Step ${i + 1} of ${steps.length}`;
+          this.renderTimeline();
+          this.updateUI();
+        },
+        
+        renderTimeline() {
+          DOM.timelineEl.innerHTML = '';
+          this.state.steps.forEach((s, idx) => {
+            const chip = document.createElement('div');
+            chip.className = 'chip' + (idx === this.state.i ? ' active' : '');
+            chip.textContent = (idx + 1) + (idx === 0 ? ' (start)' : '');
+            chip.addEventListener('click', () => { this.pause(); this.goto(idx); });
+            DOM.timelineEl.appendChild(chip);
+          });
+        },
+
+        play() {
+          if (this.state.playing) return;
+          // IMPROVEMENT: Smart replay functionality
+          if (this.state.i === this.state.steps.length - 1) {
+            this.goto(0);
+          }
+          this.state.playing = true;
+          this.updateUI();
+          this.tick();
+        },
+
+        pause() {
+          this.state.playing = false;
+          if (this.state.timer) clearTimeout(this.state.timer);
+          this.state.timer = null;
+          this.updateUI();
+        },
+
+        tick() {
+          if (!this.state.playing) return;
+          this.state.timer = setTimeout(() => {
+            if (this.next()) this.tick();
+          }, 1400 / this.state.speed);
+        },
+        
+        next() {
+          if (this.state.i < this.state.steps.length - 1) {
+            this.state.i++;
+            this.renderStep();
+            return true;
+          }
+          this.pause();
+          return false;
+        },
+
+        prev() {
+          if (this.state.i > 0) {
+            this.state.i--;
+            this.renderStep();
+          }
+        },
+        
+        goto(index, immediate = false) {
+          this.state.i = Math.max(0, Math.min(index, this.state.steps.length - 1));
+          this.renderStep(immediate);
+        },
+
+        updateUI() {
+            const { i, steps, playing } = this.state;
+            const atEnd = i >= steps.length - 1;
+
+            DOM.btnPlay.disabled = playing;
+            DOM.btnPause.disabled = !playing;
+            DOM.btnPrev.disabled = i === 0 || playing;
+            DOM.btnNext.disabled = atEnd || playing;
+            
+            // IMPROVEMENT: Change Play to Replay when at the end.
+            if (!playing && atEnd) {
+                DOM.btnPlay.textContent = '⟲ Replay';
+            } else {
+                DOM.btnPlay.textContent = '▶ Play';
+            }
+        }
+      };
+      
+      /**
+       * Manages the whiteboard drawing functionality.
+       */
+      const Whiteboard = {
+        gctx: DOM.gridCanvas.getContext('2d'),
+        dctx: DOM.drawCanvas.getContext('2d'),
+        drawing: false,
+        
+        init() {
+          this.resize();
+          this.dctx.lineCap = 'round';
+          this.updateDrawStyle();
+          this.bindEvents();
+        },
+        
+        bindEvents() {
+          DOM.btnClear.addEventListener('click', () => this.clear());
+          DOM.drawColor.addEventListener('input', () => this.updateDrawStyle());
+          DOM.lineWidth.addEventListener('input', () => this.updateDrawStyle());
+          
+          DOM.drawCanvas.addEventListener('mousedown', e => this.startDraw(e));
+          DOM.drawCanvas.addEventListener('mousemove', e => this.draw(e));
+          window.addEventListener('mouseup', () => this.stopDraw());
+          DOM.drawCanvas.addEventListener('touchstart', e => this.startDraw(e), { passive: false });
+          DOM.drawCanvas.addEventListener('touchmove', e => this.draw(e), { passive: false });
+          window.addEventListener('touchend', () => this.stopDraw());
+          
+          window.addEventListener('resize', () => this.resize());
+        },
+
+        resize() {
+          [DOM.gridCanvas, DOM.drawCanvas].forEach(c => {
+            c.width = DOM.stage.offsetWidth;
+            c.height = DOM.stage.offsetHeight;
+          });
+          this.drawGrid();
+          this.updateDrawStyle();
+        },
+
+        updateDrawStyle() {
+          this.dctx.strokeStyle = DOM.drawColor.value;
+          this.dctx.lineWidth = DOM.lineWidth.value;
+        },
+
+        clear() {
+            this.dctx.clearRect(0, 0, DOM.drawCanvas.width, DOM.drawCanvas.height);
+        },
+
+        drawGrid() {
+          this.gctx.clearRect(0, 0, DOM.gridCanvas.width, DOM.gridCanvas.height);
+          this.gctx.strokeStyle = 'rgba(255,255,255,.05)';
+          this.gctx.lineWidth = 1;
+          const step = 40;
+          for (let x = 0; x < DOM.gridCanvas.width; x += step) {
+            this.gctx.beginPath(); this.gctx.moveTo(x, 0); this.gctx.lineTo(x, DOM.gridCanvas.height); this.gctx.stroke();
+          }
+          for (let y = 0; y < DOM.gridCanvas.height; y += step) {
+            this.gctx.beginPath(); this.gctx.moveTo(0, y); this.gctx.lineTo(DOM.gridCanvas.width, y); this.gctx.stroke();
+          }
+        },
+        
+        getPos(e) {
+          const rect = DOM.drawCanvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          return { x: clientX - rect.left, y: clientY - rect.top };
+        },
+
+        startDraw(e) {
+          this.drawing = true;
+          const pos = this.getPos(e);
+          this.dctx.beginPath();
+          this.dctx.moveTo(pos.x, pos.y);
+        },
+
+        draw(e) {
+          if (!this.drawing) return;
+          e.preventDefault();
+          const pos = this.getPos(e);
+          this.dctx.lineTo(pos.x, pos.y);
+          this.dctx.stroke();
+        },
+        
+        stopDraw() { this.drawing = false; }
+      };
+
+      /**
+       * Manages the recording functionality.
+       */
+      const Recorder = {
+        mediaRecorder: null,
+        recordedChunks: [],
+        animationFrameId: null,
+
+        init() {
+            this.bindEvents();
+        },
+
+        bindEvents() {
+            DOM.btnRecord.addEventListener('click', () => this.start());
+            DOM.btnStopRec.addEventListener('click', () => this.stop());
+        },
+
+        async start() {
+          const recordCanvas = document.createElement('canvas');
+          const scale = 2; // For higher resolution recording
+          recordCanvas.width = DOM.stage.offsetWidth * scale;
+          recordCanvas.height = DOM.stage.offsetHeight * scale;
+          const ctx = recordCanvas.getContext('2d');
+          ctx.scale(scale, scale);
+
+          const stream = recordCanvas.captureStream(30);
+          this.mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+          this.recordedChunks = [];
+          
+          this.mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) this.recordedChunks.push(e.data);
+          };
+
+          this.mediaRecorder.onstop = () => {
+            const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            DOM.dlLink.href = url;
+            DOM.dlLink.download = 'algebra-board.webm';
+            DOM.dlLink.style.display = 'inline';
+          };
+
+          const recordFrame = async () => {
+            try {
+              const canvas = await html2canvas(DOM.stage, { logging: false, backgroundColor: '#0b0f14' });
+              ctx.clearRect(0, 0, recordCanvas.width, recordCanvas.height);
+              ctx.drawImage(canvas, 0, 0, DOM.stage.offsetWidth, DOM.stage.offsetHeight);
+
+              if (this.mediaRecorder.state === 'recording') {
+                this.animationFrameId = requestAnimationFrame(recordFrame);
+              }
+            } catch (err) {
+              console.error("Error capturing frame:", err);
+              this.stop();
+            }
+          };
+          
+          this.mediaRecorder.start();
+          this.animationFrameId = requestAnimationFrame(recordFrame);
+          this.updateUI(true);
+        },
+        
+        stop() {
+          if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') this.mediaRecorder.stop();
+          if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+          this.animationFrameId = null;
+          this.updateUI(false);
+        },
+
+        updateUI(isRecording) {
+            DOM.recBadge.textContent = isRecording ? '● recording' : 'saved';
+            DOM.recBadge.classList.toggle('live', isRecording);
+            DOM.btnRecord.disabled = isRecording;
+            DOM.btnStopRec.disabled = !isRecording;
+        }
+      };
+
+      // --- Initialize all modules ---
+      Animator.init();
+      Whiteboard.init();
+      Recorder.init();
+    });
+  </script>
+</body>
+</html>```
